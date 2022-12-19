@@ -2,3 +2,13 @@ Earth Engine Python Setup
 
 This notebook demonstrates how to setup the Earth Engine Python API in Colab and provides several examples of how to print and visualize Earth Engine processed data.
 
+1. Install the API to an arbitrary Python environment using pip:
+!pip install earthengine-api
+
+2. Once installed, you can import, authenticate and initialize the Earth Engine API as described here:
+!pip install earthengine-api --upgrade
+
+import ee
+ee.Authenticate()
+ee.Initialize()
+print(ee.Image("users/zr110/hoboken2015").get("title").getInfo())
