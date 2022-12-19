@@ -1,0 +1,430 @@
+var imageCollection=ee.ImageCollection("users/zr110/hoboken2015")
+print(imageCollection)
+var dataset = ee.Image('USGS/3DEP/10m')
+var elevation = dataset.select('elevation');
+var slope = ee.Terrain.slope(elevation);
+
+Map.addLayer(slope.clip(table), {min: 0, max: 30}, 'slope',false);
+Map.addLayer(elevation.clip(table), {min: 0, max: 30}, 'elevation',false);
+
+var dataset = ee.ImageCollection('NASA/GRACE/MASS_GRIDS/LAND')
+                  .filter(ee.Filter.date('2015-03-01', '2016-08-30'));
+var equivalentWaterThicknessCsr = dataset.select('lwe_thickness_csr');
+var equivalentWaterThicknessCsrVis = {
+  min: 69.0,
+  max: 70.0,
+  palette: ['5e3c99', 'b2abd2', 'f7e0b2', 'fdb863', 'e63b01']
+};
+
+Map.addLayer(
+    equivalentWaterThicknessCsr.sum().clip(table), equivalentWaterThicknessCsrVis,
+    'Equivalent Water Thickness CSR',false);
+
+var dataset = ee.Image("OpenLandMap/SOL/SOL_BULKDENS-FINEEARTH_USDA-4A1H_M/v02");
+
+var visualization = {
+  bands: ['b0'],
+  min: 127,
+  max: 137,
+  palette: ['5e3c99', 'b2abd2', 'f7e0b2', 'fdb863', 'e63b01']
+};
+
+Map.addLayer(dataset.clip(table), visualization, "Soil bulk density in x 10 kg / m3");
+var viz={min: -1 ,max: -0.5,palette: ['purple','red','orange','yellow','blue','cyan','white','black']}
+var vizvar={min: 0 ,max: 0.1,palette: ['black','white','cyan','blue','yellow','orange','red','purple']}
+Map.addLayer(pip,{},"Sewer infiltration map by (Liu et al., 2018)",false)
+var imageCollection=ee.ImageCollection("users/zr110/hoboken2015").filterDate('2015-03-01', '2016-03-31').sum().multiply(ee.Image(10)).clip(table)//.subtract(ee.Image(1.2))
+
+  var demvar=ee.ImageCollection("users/zr110/hoboken2015").filterDate('2015-03-01', '2016-03-31')
+  .filterBounds(ee.Geometry.Point(-74.0332, 40.7451)).reduce('variance').multiply(ee.Image(10)).clip(table)
+  // .evaluate(function(val){
+  // var vartext='Variance of Subsidence: '+val.b1_variance;
+  //     // toolPanel.widgets().set(3, ui.Label(vartext));
+  // });
+
+Map.addLayer(ee.Image(demvar).focal_median(23.5, 'circle', 'meters'),vizvar,"Variance displacement")
+Map.addLayer(imageCollection.select('b1').focal_median(13.5, 'circle', 'meters'),viz,"total displacement")
+Map.setOptions('SATELLITE');
+Map.centerObject(table, 15);
+
+// interactive map panels and time series plots
+var drawingTools = Map.drawingTools();
+
+drawingTools.setShown(false);
+while (drawingTools.layers().length() > 0) {
+  var layer = drawingTools.layers().get(0);
+  drawingTools.layers().remove(layer);
+}
+
+var dummyGeometry = ui.Map.GeometryLayer({geometries: null, name: 'geometry', color: '23cba7'});
+
+drawingTools.layers().add(dummyGeometry);
+
+function clearGeometry() {
+  var layers = drawingTools.layers();
+  layers.get(0).geometries().remove(layers.get(0).geometries().get(0));
+}
+
+function drawRectangle() {
+  clearGeometry();
+  drawingTools.setShape('rectangle');
+  drawingTools.draw();
+}
+
+function drawPolygon() {
+  clearGeometry();
+  drawingTools.setShape('polygon');
+  drawingTools.draw();
+}
+
+function drawPoint() {
+  clearGeometry();
+  drawingTools.setShape('point');
+  drawingTools.draw();
+}
+
+var chartPanel = ui.Panel({
+  style:
+      {height: '235px', width: '700px', position: 'bottom-right', shown: false}
+});
+// add chart panel
+Map.add(chartPanel);
+
+// control panel
+var symbol = {
+  rectangle: 'Draw Rectangle ⬛',
+  polygon: 'Draw Polygon 🔺',
+  point: 'Draw Point +',
+};
+
+var controlPanel = ui.Panel({
+  widgets: [
+    ui.Label('Time series chart:(Draw on map)'),
+    ui.Button({
+      label: symbol.rectangle + '',
+      onClick: drawRectangle,
+      style: {stretch: 'horizontal'}
+    }),
+    ui.Button({
+      label: symbol.polygon + '',
+      onClick: drawPolygon,
+      style: {stretch: 'horizontal'}
+    }),
+    ui.Button({
+      label: symbol.point + '',
+      onClick: drawPoint,
+      style: {stretch: 'horizontal'}
+    })
+  ],
+  style: {position: 'top-left'},
+  layout: null,
+});
+
+// add control panel
+Map.add(controlPanel);
+drawingTools.onDraw(ui.util.debounce(chartTimeSeries, 500));
+drawingTools.onEdit(ui.util.debounce(chartTimeSeries, 500));
+
+function chartTimeSeries() {
+  // Make the chart panel visible the first time a geometry is drawn.
+  if (!chartPanel.style().get('shown')) {
+    chartPanel.style().set('shown', true);
+  }
+  
+  // Get the drawn geometry; it will define the reduction region.
+  var aoi = drawingTools.layers().get(0).getEeObject();
+
+  // Set the drawing mode back to null; turns drawing off.
+  drawingTools.setShape(null);
+
+  // Reduction scale is based on map scale to avoid memory/timeout errors.
+  var mapScale = Map.getScale();
+  var scale = mapScale > 5000 ? mapScale * 2 : 5000;
+  
+var collection=ee.ImageCollection('users/zr110/hoboken2015').filterDate('2015-03-12', '2016-03-31')
+.map(function(image) {
+    return image.multiply(ee.Image(10)).rename('sub')
+    .set('system:time_start', image.get('system:time_start'));
+}).filterBounds(aoi)
+
+
+  
+  // Get the timestamp from the most recent image in the reference collection.
+var time0 = collection.first().get('system:time_start');
+
+// Use imageCollection.iterate() to make a collection of cumulative anomaly over time.
+// The initial value for iterate() is a list of anomaly images already processed.
+// The first anomaly image in the list is just 0, with the time0 timestamp.
+var first = ee.List([
+  // Rename the first band 'EVI'.
+  collection.first().set('system:time_start', time0).select([0]).rename('sub')
+]);
+
+// This is a function to pass to Iterate().
+// As anomaly images are computed, add them to the list.
+var accumulate = function(image, list) {
+  // Get the latest cumulative anomaly image from the end of the list with
+  // get(-1).  Since the type of the list argument to the function is unknown,
+  // it needs to be cast to a List.  Since the return type of get() is unknown,
+  // cast it to Image.
+  var previous = ee.Image(ee.List(list).get(-1));
+  // Add the current anomaly to make a new cumulative anomaly image.
+  var added = image.add(previous)
+    // Propagate metadata to the new image.
+    .set('system:time_start', image.get('system:time_start'));
+  // Return the list with the cumulative anomaly inserted.
+  return ee.List(list).add(added);
+};
+
+// Create an ImageCollection of cumulative anomaly images by iterating.
+// Since the return type of iterate is unknown, it needs to be cast to a List.
+var cumulative = ee.ImageCollection(ee.List(collection.iterate(accumulate, first)));
+print(cumulative)
+var absolut=cumulative.map(function(image) {
+    return image.multiply(ee.Image(1))
+    .set('system:time_start', image.get('system:time_start'));
+});
+print(absolut)
+// Function to add NDVI, time, and constant variables to Landsat 8 imagery.
+var addVariables = function(image) {
+  // Compute time in fractional years since the epoch.
+  var date = image.date();
+  var days = date.difference(ee.Date('2015-03-01'), 'day');
+  // Return the image with the added bands.
+  return image
+  // .addBands(image.select('b1').rename('sub'))
+  // Add a time band.
+  .addBands(ee.Image(days).rename('t')).float()
+  // Add a constant band.
+  .addBands(ee.Image.constant(1));
+};
+var absolut2=absolut.map(addVariables);
+
+  var chart = ui.Chart.image.series({
+  imageCollection: absolut2.select('sub'),
+  region: aoi, 
+  reducer: ee.Reducer.median(), 
+  scale: 10,
+                })
+.setChartType('ScatterChart')
+                  .setOptions({
+                  title: 'Surface Deformation time seires between March 2015 and March 2016, in Hoboken',
+                  trendlines: {
+                                   0: {color: 'CC0000'}
+                                 },
+                     lineWidth: 1,
+                     pointSize: 3,
+                    hAxis: {
+                    title: 'Date',
+                    titleTextStyle: {italic: false, bold: true},
+                  },
+                    vAxis:
+                  {title: 'Subsidence [CM]', titleTextStyle: {italic: false, bold: true}},
+                    colors: ['39a8a7']
+                    
+});
+//button for removing chart from map
+var button2 = ui.Button({
+  label: 'Close chart',
+  style: {
+    margin: '-20px 0px 0px 26px', position: 'middle-left',
+  }
+});
+
+button2.onClick(function(){
+  // chartPanel.widgets().reset([chart]);
+  Map.remove(chartPanel); //removes the chart from map
+  Map.remove(button2);
+});
+Map.add(button2);
+  // Replace the existing chart in the chart panel with the new chart.
+  chartPanel.widgets().reset([chart]);
+Map.add(chartPanel);
+
+}
+
+//********************* LEGEND
+
+// Legend for total displacement
+// set position of panel
+var legend = ui.Panel({
+  style: {
+    position: 'top-right',
+    padding: '3px 5px'
+  }
+});
+// Create legend title
+var legendTitle = ui.Label({
+  value: 'Total subsidence',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '14px',
+    margin: '0px 0px 0px 0px',
+    padding: '0'
+    }
+});
+
+// Add the title to the panel
+legend.add(legendTitle);
+
+// The max label code
+var max_label = ui.Label({
+  value: '-30 [mm]',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '12px',
+    margin: '0px 0px 0px 36px',   // margin positions the title or text based on the parameters you give
+    padding: '5px'                // padding spaces the label a certain amount from other labels around it
+    }
+});
+legend.add(max_label)
+
+// Creating the color bar
+function makeColorBarParams(palette) {
+  return {
+    bbox: [0, 1, 2, 0,],  
+    dimensions: '30x150',
+    format: 'png',
+    palette: palette,
+  };
+}
+var  palette= [ 'black','white','cyan','blue','yellow','orange','red','purple'];
+//{ min: 0, max: 29, palette: ['black','white','cyan','blue','yellow','orange','red','purple']}
+// the colorbar to show the different soil moisture
+var colorBar = ui.Thumbnail({
+  image: ee.Image.pixelLonLat().select(1),
+  params: makeColorBarParams(palette),
+  style: {stretch: 'vertical', margin: '0px 50px', maxHeight: '200px'},
+});
+
+legend.add(colorBar)
+// The min label code
+var min_label = ui.Label({
+  value: ' -15 [mm]',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '12px',
+    margin: '0px 0px 0px 36px',   // margin positions the title or text based on the parameters you give
+    padding: '5px'                // padding spaces the label a certain amount from other labels around it
+    }
+});
+
+legend.add(min_label);
+Map.add(legend);
+
+// Legend for variance
+// set position of panel
+var legend = ui.Panel({
+  style: {
+    position: 'middle-right',
+    padding: '3px 5px'
+  }
+});
+// Create legend title
+var legendTitle = ui.Label({
+  value: 'Variance',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '14px',
+    margin: '0px 0px 0px 0px',
+    padding: '0'
+    }
+});
+
+// Add the title to the panel
+legend.add(legendTitle);
+
+// The max label code
+var max_label = ui.Label({
+  value: '1 [mm]',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '12px',
+    margin: '0px 0px 0px 36px',   // margin positions the title or text based on the parameters you give
+    padding: '5px'                // padding spaces the label a certain amount from other labels around it
+    }
+});
+legend.add(max_label)
+
+// Creating the color bar
+function makeColorBarParams(palette) {
+  return {
+    bbox: [0, 1, 2, 0,],  
+    dimensions: '30x150',
+    format: 'png',
+    palette: palette,
+  };
+}
+var  palette= [ 'black','white','cyan','blue','yellow','orange','red','purple'];
+//{ min: 0, max: 29, palette: ['black','white','cyan','blue','yellow','orange','red','purple']}
+// the colorbar to show the different soil moisture
+var colorBar = ui.Thumbnail({
+  image: ee.Image.pixelLonLat().select(1),
+  params: makeColorBarParams(palette),
+  style: {stretch: 'vertical', margin: '0px 50px', maxHeight: '200px'},
+});
+
+legend.add(colorBar)
+// The min label code
+var min_label = ui.Label({
+  value: ' 0 [mm]',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '12px',
+    margin: '0px 0px 0px 36px',   // margin positions the title or text based on the parameters you give
+    padding: '5px'                // padding spaces the label a certain amount from other labels around it
+    }
+});
+
+legend.add(min_label);
+Map.add(legend);
+
+
+// sidbar
+Map.style().set('cursor', 'crosshair');
+
+
+// Following is adapted from https://code.earthengine.google.com/?scriptPath=Examples:User+Interface/Ocean+Timeseries+Investigator
+// Set a callback function for when the user clicks the map.
+var header = ui.Label('Estimated subsidence from Sentinel-1 between March 2015 and March 2016, in Hoboken. Please click on the map to see total subsidence.', {fontWeight: 'bold', fontSize: '18px'});
+var toolPanel = ui.Panel([header], 'flow', {width: '250px'});
+
+Map.onClick(function(coords) {
+  var location = 'lon: ' + coords.lon.toFixed(4) + ' ' +
+                 'lat: ' + coords.lat.toFixed(4);
+  var click_point = ee.Geometry.Point(coords.lon, coords.lat);
+    var demValue=ee.ImageCollection("users/zr110/hoboken2015").filterDate('2015-03-01', '2016-03-31')
+  .filterBounds(ee.Geometry.Point(coords.lon, coords.lat)).reduce('sum').multiply(ee.Image(100)).clip(table)
+  var demValue2 = ee.Image(demValue.focal_median(23.5, 'circle', 'meters')).reduceRegion(ee.Reducer.mean(), click_point, 15)
+  .evaluate(function(val){
+    var demText = 'Total Subsidence [mm]: ' + val.b1_sum;
+    toolPanel.widgets().set(2, ui.Label(demText));
+  });
+  toolPanel.widgets().set(1, ui.Label(location));
+// Edit: To be temporary, the "loading..." panel number has to be the same as the demText panel number (changed from 1 to 2).
+  toolPanel.widgets().set(2, ui.Label("loading..."));
+  // var col = ee.ImageCollection("users/zr110/insardsp")
+  // .filterBounds(ee.Geometry.Point(coords.lon, coords.lat))
+
+  var demvar=ee.ImageCollection("users/zr110/hoboken2015").filterDate('2015-03-01', '2016-03-31')
+  .filterBounds(ee.Geometry.Point(coords.lon, coords.lat)).reduce('variance').multiply(ee.Image(100)).clip(table)
+  var demvar2=ee.Image(demvar.focal_median(23.5, 'circle', 'meters')).reduceRegion(ee.Reducer.mean(), click_point, 15)
+  // var demvar2=demvar.reduceRegion(ee.Reducer.variance(), click_point, 15)
+    .evaluate(function(val){
+  var vartext='Variance of Subsidence [mm]: '+val.b1_variance;
+      toolPanel.widgets().set(3, ui.Label(vartext));
+    });
+  // var demavr=ee.ImageCollection("users/zr110/hoboken2015").filterDate('2015-03-01', '2016-03-31')
+  // .filterBounds(ee.Geometry.Point(coords.lon, coords.lat)).reduce('mean').multiply(ee.Image(100)).clip(table)
+  // var demvar3=ee.Image(demavr).reduceRegion(ee.Reducer.mean(), click_point, 15)
+  // // var demvar2=demvar.reduceRegion(ee.Reducer.variance(), click_point, 15)
+  //   .evaluate(function(val){
+  // var vartext='Average Subsidence rate [mm/yr]: '+val.b1_mean;
+  //     toolPanel.widgets().set(4, ui.Label(vartext));
+  // });
+  Map.layers().set(3, ui.Map.Layer(click_point, {color: 'FF0000'},'click_point'));
+});
+
+
+// Add the panel to the ui.root.
+ui.root.add(toolPanel);
