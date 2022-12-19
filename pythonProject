@@ -1,1 +1,4 @@
+Earth Engine Python Setup
+
+This notebook demonstrates how to setup the Earth Engine Python API in Colab and provides several examples of how to print and visualize Earth Engine processed data.
 
