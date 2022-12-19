@@ -1,6 +1,6 @@
 Earth Engine Python Setup
 
-This notebook demonstrates how to setup the Earth Engine Python API in Colab and provides several examples of how to print and visualize Earth Engine processed data.
+This notebook demonstrates how to setup the Earth Engine Python API in python Jupyter and provides several examples of how to print and visualize Earth Engine processed data.
 
 1. Install the API to an arbitrary Python environment using pip:
 !pip install earthengine-api
@@ -8,7 +8,64 @@ This notebook demonstrates how to setup the Earth Engine Python API in Colab and
 2. Once installed, you can import, authenticate and initialize the Earth Engine API as described here:
 !pip install earthengine-api --upgrade
 
+Example 1:
+
+#Test the API
+
 import ee
 ee.Authenticate()
 ee.Initialize()
-print(ee.Image("users/zr110/hoboken2015").get("title").getInfo())
+print(ee.ImageCollection("users/zr110/hoboken2015").get("title").getInfo())
+
+
+Example 2:
+#Map visualization
+sub=ee.ImageCollection("users/zr110/hoboken2015")
+# Import the Image function from the IPython.display module.
+from IPython.display import Image
+
+# Display a thumbnail of global elevation.
+Image(url = sub.updateMask(dem.gt(0))
+  .getThumbURL({'min': 0, 'max': 4000, 'dimensions': 512,
+                'palette': ['purple','red','orange','yellow','blue','cyan','white','black']}))
+   
+Example3:
+# Interactive map
+# The following cell provides an example of adding a method for handing Earth Engine tiles and using it to display a subsidence:
+
+# Import the Folium library.
+import folium
+
+# Define a method for displaying Earth Engine image tiles to folium map.
+def add_ee_layer(self, ee_image_object, vis_params, name):
+  map_id_dict = ee.Image(ee_image_object).getMapId(vis_params)
+  folium.raster_layers.TileLayer(
+    tiles = map_id_dict['tile_fetcher'].url_format,
+    attr = 'Map Data © Google Earth Engine',
+    name = name,
+    overlay = True,
+    control = True
+  ).add_to(self)
+
+# Add EE drawing method to folium.
+folium.Map.add_ee_layer = add_ee_layer
+
+# Set visualization parameters.
+vis_params = {
+  'min': -1,
+  'max': 0,
+'palette': ['purple','red','orange','yellow','blue','cyan','white','black']}
+
+# Create a folium map object.
+my_map = folium.Map(location=[20, 0], zoom_start=3)
+
+# Add the elevation model to the map object.
+my_map.add_ee_layer(sub.updateMask(sub.lt(0)), vis_params, 'Subsidence')
+
+# Add a layer control panel to the map.
+my_map.add_child(folium.LayerControl())
+
+# Display the map.
+display(my_map)
+
+
